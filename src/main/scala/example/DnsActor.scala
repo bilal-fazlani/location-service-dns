@@ -24,14 +24,20 @@ class DnsActor extends Actor {
   implicit val timeout: Timeout = Timeout(5 seconds)
 
   val names:Map[String,String] = Map(
-      "bilal.com" -> "127.0.0.1"
+      "comp1.tmt" -> "127.0.0.1"
     )
 
     def forwardMessage(message: Message): Future[Message] = (IO(Dns) ? Dns.DnsPacket(message, destinationDns)).mapTo[Message]
 
     override def receive: PartialFunction[Any, Unit] = {
       case Bound => println("started")
-      case Query(q) ~ Questions(QName(host) ~ TypeA() :: Nil) if names.contains(host) => sender ! Response(q) ~ Answers(RRName(host) ~ ARecord(names(host)))
-      case message: Message => forwardMessage(message).pipeTo(sender)
+      case Query(q) ~ RecursionDesired() ~ Questions(QName(host) ~ TypeA() :: Nil) if names.contains(host) =>
+        println("in rd")
+        sender ! Response(q) ~ RecursionAvailable ~ Answers(RRName(host) ~ ARecord(names(host)))
+      case Query(q) ~ Questions(QName(host) ~ TypeA() :: Nil) if names.contains(host) =>
+        println("in query")
+        sender ! Response(q) ~ Answers(RRName(host) ~ ARecord(names(host)))
+      case message: Message =>
+        forwardMessage(message).pipeTo(sender)
     }
   }
